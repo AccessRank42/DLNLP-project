@@ -11,16 +11,6 @@ import chainer.functions as F
 import chainer.links as L
 
 
-"""
-# 1. tokenize DS/input via stanford toeknizer
-
-# 2. token2vec
-for token in input:
-    if token in glove_vectors:
-        vectorized_input.append(appropriate_glove_vector)
-    else:
-        vectorized_input.append(zero_vector)
-"""
 class DocAndQuesEncoder(ch.Chain):
     # def __init__(self, n_layers, n_units, n_target_vocab, emb_mat, dropout, hid_size):
     def __init__(self, emb_mat, dropout, hid_size):
@@ -37,7 +27,6 @@ class DocAndQuesEncoder(ch.Chain):
             # self.sentiel = L.Parameter(np.random.randn(1, emb_mat.shape[1]))
 
         self.dropout = dropout
-        # self.n_layers = n_layers
 
     def forward(self, x_D, x_Q, hx_D=None, cx_D=None, hx_Q=None, cx_Q=None):
 
@@ -55,23 +44,7 @@ class DocAndQuesEncoder(ch.Chain):
 
         #TODO: append sentinel Q
 
-        # packed_context_output, (_) = self.encoder(packed_context)
-        # D, (_) = pad_packed_sequence(packed_context_output)
-        # D = D.contiguous()
-        # packed_question_output, (_) = self.encoder(packed_question)
-        # Q_intermediate, (_) = pad_packed_sequence(packed_question_output)
-        # Q_intermediate = Q_intermediate.contiguous()
-        # # Non-linear projection on question encoding space
-        # Q = F.tanh(self.ques_projection(Q_intermediate))
-        # # Append the sentinel vector, shape = B x 1 x l
-        # sentinel_c = self.sentinel_c.unsqueeze(0).expand(
-        #     batch_size, config.hidden_dim).unsqueeze(1).contiguous()
-        # sentinel_q = self.sentinel_q.unsqueeze(0).expand(
-        #     batch_size, config.hidden_dim).unsqueeze(1)
-        # # shape changes to B x m+1 x l
-        # D = torch.cat((D, sentinel_c), 1)
-        # # shape changes to B x n+1 x l
-        # Q = torch.cat((Q, sentinel_q), 1)
+
         return (D, Q)
 
 class CoattentionEncoder(ch.Chain):

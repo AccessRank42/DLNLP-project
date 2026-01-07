@@ -47,7 +47,7 @@ def get_glove(glove_path, glove_dim):
       id2word: dictionary mapping word id (int) to word (string)
     """
 
-    print("Loading GLoVE vectors from file: %s" % glove_path)
+    print("Loading GLoVE vectors from file: {}".format(glove_path))
     vocab_size = 2196017 # this is the vocab size of the corpus we've downloaded
 
     emb_matrix = np.zeros((vocab_size + len(_START_VOCAB), glove_dim))
@@ -83,7 +83,7 @@ def get_glove(glove_path, glove_dim):
             word = " ".join(line[:-glove_dim])
               
             if glove_dim != len(vector):
-                raise Exception("You set --glove_path=%s but --embedding_size=%i. If you set --glove_path yourself then make sure that --embedding_size matches!" % (glove_path, glove_dim))
+                raise Exception("You set --glove_path={} but --embedding_size={}. If you set --glove_path yourself then make sure that --embedding_size matches!".format(glove_path, glove_dim))
             
             # janky way to deal with duplicate words
             try:

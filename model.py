@@ -11,20 +11,18 @@ import chainer.functions as F
 import chainer.links as L
 
 
+
 class DocAndQuesEncoder(ch.Chain):
-    # def __init__(self, n_layers, n_units, n_target_vocab, emb_mat, dropout, hid_size):
     def __init__(self, emb_mat, dropout, hid_size):
-        super(DynamicCoattentionNW, self).__init__()
+        super(DocAndQuesEncoder, self).__init__()
         with self.init_scope():
             self.emb = L.EmbedID(emb_mat.shape[0], emb_mat.shape[1], initialW=emb_mat)
             self.emb.disable_update()
-            # self.encLSTM = L.LSTM(emb_mat.shape[1], hid_size)
             self.encLSTM = L.NStepLSTM(1, emb_mat.shape[1], hid_size, dropout)
-            # self.projectionLayer = ch.Sequential(L.Linear(n_units, n_target_vocab), F.tanh)
-            self.projectionLayer = ch.Sequential(L.Linear(hid_size, hid_size), F.tanh)
+            # self.projectionLayer = ch.Sequential(L.Linear(hid_size, hid_size), F.tanh)
+            self.projectionLayer = L.Linear(hid_size, hid_size)
             self.sentielD = ch.Parameter(np.random.randn(emb_mat.shape[1], 1)) #TODO: shape?
             self.sentielQ = ch.Parameter(np.random.randn(emb_mat.shape[1], 1)) #TODO: shape?
-            # self.sentiel = L.Parameter(np.random.randn(1, emb_mat.shape[1]))
 
         self.dropout = dropout
 
@@ -32,18 +30,23 @@ class DocAndQuesEncoder(ch.Chain):
 
         x_D_emb = F.dropout(self.emb(x_D), self.dropout)
 
-        _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb)
-        # D = F.dropout(self.encLSTM(x_D_emb), self.dropout)
+        # nstep LSTM needs it split into a list
+        x_D_emb_ = [x_D_emb[i] for i in range(x_D_emb.shape[0])]
+        _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb_)
+        D = F.stack(D, axis=0)
+        # print(D.shape)
+
+        #TODO: append sentinel D
+
+        x_Q_emb = F.dropout(self.emb(x_Q), self.dropout)
+
+        x_Q_emb_ = [x_Q_emb[i] for i in range(x_Q_emb.shape[0])]
+        _, _, Q_ = self.encLSTM(hx_Q, cx_Q, x_Q_emb_)
+        Q_ = F.stack(Q_, axis=0)
+
+        Q = F.tanh(self.projectionLayer(Q_, n_batch_axes=2))
+
         #TODO: append sentinel Q
-
-        x_Q_emb = F.dropout(self.emb(x_D), self.dropout)
-
-        # Q_ = F.dropout(self.encLSTM(x_D_emb), self.dropout)
-        _, _, Q_ = self.encLSTM(hx_Q, cx_Q, x_Q_emb)
-        Q = self.projectionLayer(Q_)
-
-        #TODO: append sentinel Q
-
 
         return (D, Q)
 
@@ -56,23 +59,31 @@ class CoattentionEncoder(ch.Chain):
         self.dropout = dropout
 
     def forward(self, D, Q, hx=None, cx=None):
+        # TODO Note: in our case m = n = max_seq_length due to padding 
+        # l is our hid_size
+
+        # L = D^TQ \in \R^{(m + 1) x (n + 1)}
         L = F.matmul(F.transpose(D), Q)
 
+        # A^Q = softmax(L) \in \R^{(m + 1) x (n + 1)}
         Aq = F.softmax(L)
+        # A^Q = softmax(L^T) \in \R^{(n + 1) x (m + 1)}
         Ad = F.softmax(F.transpose(L))
 
-        Cq = F.matmul(D, Aq)
+        # C^Q = DA^Q \in \R^{l x (n + 1)}
+        Cq = F.matmul(D, Aq) 
+        # C^D = [Q; C^Q]A^D \in \R^{2l x (m + 1)}, that is the simultaneous multiplication of QA^D and C^QA^D
         Cd = F.matmul(F.concat([Q, Cq], axis=0), Ad)
 
-        # U = bi-directional LSTM
+        # U = [u_1, ..., u_m] for u_t = bi-directional LSTM(u_{t-1}, u_{t+1}, [d_t, c^D_t]) \in \R^{2l} 
         _, _, U = self.biLSTM(hx, cx, F.concat([D, Cd], axis=0))
 
-        #TODO: remove sentinel vect - before or after U?
+        #TODO: remove sentinel vect - before or after calc U?
         return U
 
 class HighwayMaxout(ch.Chain):
     def __init__(self, dropout, hid_size, maxout_pool_size):
-        super(DynamicPointingDecoder, self).__init__()
+        super(HighwayMaxout, self).__init__()
         with self.init_scope():
             self.projectionLayer_alpha = ch.Sequential(L.Linear(5*hid_size, hid_size, nobias=True), F.tanh)
             self.max1 = L.Maxout(3*hid_size, hid_size, maxout_pool_size)
@@ -138,3 +149,78 @@ class DynamicCoattentionNW(ch.Chain):
         U = self.coAttEncoder(D, Q)
 
         s, e = self.decoder(U)
+
+
+
+# class Seq2seq(ch.Chain):
+
+#     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units):
+#         super(Seq2seq, self).__init__()
+#         with self.init_scope():
+#             self.embed_x = L.EmbedID(n_source_vocab, n_units)
+#             self.embed_y = L.EmbedID(n_target_vocab, n_units)
+#             self.encoder = L.NStepLSTM(n_layers, n_units, n_units, 0.1)
+#             self.decoder = L.NStepLSTM(n_layers, n_units, n_units, 0.1)
+#             self.W = L.Linear(n_units, n_target_vocab)
+
+#         self.n_layers = n_layers
+#         self.n_units = n_units
+
+#     def forward(self, xs, ys):
+#         xs = [x[::-1] for x in xs]
+
+#         eos = self.xp.array([EOS], np.int32)
+#         ys_in = [F.concat([eos, y], axis=0) for y in ys]
+#         ys_out = [F.concat([y, eos], axis=0) for y in ys]
+
+#         # Both xs and ys_in are lists of arrays.
+#         exs = sequence_embed(self.embed_x, xs)
+#         eys = sequence_embed(self.embed_y, ys_in)
+
+#         batch = len(xs)
+#         # None represents a zero vector in an encoder.
+#         hx, cx, _ = self.encoder(None, None, exs)
+#         _, _, os = self.decoder(hx, cx, eys)
+
+#         # It is faster to concatenate data before calculating loss
+#         # because only one matrix multiplication is called.
+#         concat_os = F.concat(os, axis=0)
+#         concat_ys_out = F.concat(ys_out, axis=0)
+#         loss = F.sum(F.softmax_cross_entropy(
+#             self.W(concat_os), concat_ys_out, reduce='no')) / batch
+
+#         ch.report({'loss': loss}, self)
+#         n_words = concat_ys_out.shape[0]
+#         perp = self.xp.exp(loss.array * batch / n_words)
+#         ch.report({'perp': perp}, self)
+#         return loss
+
+#     def translate(self, xs, max_length=100):
+#         batch = len(xs)
+#         with ch.no_backprop_mode(), ch.using_config('train', False):
+#             xs = [x[::-1] for x in xs]
+#             exs = sequence_embed(self.embed_x, xs)
+#             h, c, _ = self.encoder(None, None, exs)
+#             ys = self.xp.full(batch, EOS, np.int32)
+#             result = []
+#             for i in range(max_length):
+#                 eys = self.embed_y(ys)
+#                 eys = F.split_axis(eys, batch, 0)
+#                 h, c, ys = self.decoder(h, c, eys)
+#                 cys = F.concat(ys, axis=0)
+#                 wy = self.W(cys)
+#                 ys = self.xp.argmax(wy.array, axis=1).astype(np.int32)
+#                 result.append(ys)
+
+#         # Using `xp.concatenate(...)` instead of `xp.stack(result)` here to
+#         # support NumPy 1.9.
+#         result = ch.get_device('@numpy').send(
+#             self.xp.concatenate([x[None, :] for x in result]).T)
+
+#         # Remove EOS taggs
+#         outs = []
+#         for y in result:
+#             inds = np.argwhere(y == EOS)
+#             if len(inds) > 0:
+#                 y = y[:inds[0, 0]]
+#             outs.append(y)

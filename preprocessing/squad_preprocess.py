@@ -244,7 +244,7 @@ def preprocess_and_write(dataset, tier, out_dir):
     print("Number of (context, question, answer) triples discarded due to char -> token mapping problems: ", num_mappingprob)
     print("Number of (context, question, answer) triples discarded because character-based answer span is unaligned with tokenization: ", num_tokenprob)
     print("Number of (context, question, answer) triples discarded due character span alignment problems (usually Unicode problems): ", num_spanalignprob)
-    print("Processed %i examples of total %i\n" % (num_exs, num_exs + num_mappingprob + num_tokenprob + num_spanalignprob))
+    print("Processed {} examples of total {}\n".format(num_exs, num_exs + num_mappingprob + num_tokenprob + num_spanalignprob))
 
     # shuffle examples
     indices = [i for i in range(len(examples))]
@@ -282,7 +282,7 @@ def main():
 
     # read train set
     train_data = data_from_json(os.path.join(args.data_dir, train_filename))
-    print("Train data has %i examples total" % total_exs(train_data))
+    print("Train data has {} examples total".format(total_exs(train_data)))
 
     # preprocess train set and write to file
     preprocess_and_write(train_data, 'train', args.data_dir)
@@ -292,7 +292,7 @@ def main():
 
     # read dev set
     dev_data = data_from_json(os.path.join(args.data_dir, dev_filename))
-    print("Dev data has %i examples total" % total_exs(dev_data))
+    print("Dev data has {} examples total".format(total_exs(dev_data)))
 
     # preprocess dev set and write to file
     preprocess_and_write(dev_data, 'dev', args.data_dir)

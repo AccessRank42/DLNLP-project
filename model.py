@@ -61,22 +61,32 @@ class CoattentionEncoder(ch.Chain):
     def forward(self, D, Q, hx=None, cx=None):
         # TODO Note: in our case m = n = max_seq_length due to padding 
         # l is our hid_size
+        # also, matmuls & dims are reversed
 
         # L = D^TQ \in \R^{(m + 1) x (n + 1)}
-        L = F.matmul(F.transpose(D), Q)
+        # L = F.matmul(F.transpose(D, axes=(0,2,1)), Q)
+        L = F.matmul(Q, F.transpose(D, axes=(0,2,1)))
 
         # A^Q = softmax(L) \in \R^{(m + 1) x (n + 1)}
-        Aq = F.softmax(L)
+        Aq = F.softmax(L, axis=2)
+        # print(Aq.shape)
         # A^Q = softmax(L^T) \in \R^{(n + 1) x (m + 1)}
-        Ad = F.softmax(F.transpose(L))
+        Ad = F.softmax(F.transpose(L, axes=(0,2,1)))
 
         # C^Q = DA^Q \in \R^{l x (n + 1)}
-        Cq = F.matmul(D, Aq) 
+        # Cq = F.matmul(D, Aq) 
+        Cq = F.matmul(Aq, D) 
         # C^D = [Q; C^Q]A^D \in \R^{2l x (m + 1)}, that is the simultaneous multiplication of QA^D and C^QA^D
-        Cd = F.matmul(F.concat([Q, Cq], axis=0), Ad)
+        QCq = F.concat([Q, Cq], axis=2)
+        # Cd = F.matmul(QCq, Ad)
+        Cd = F.matmul(Ad, QCq)
 
         # U = [u_1, ..., u_m] for u_t = bi-directional LSTM(u_{t-1}, u_{t+1}, [d_t, c^D_t]) \in \R^{2l} 
-        _, _, U = self.biLSTM(hx, cx, F.concat([D, Cd], axis=0))
+        DCd = F.concat([D, Cd], axis=2)
+        DCd = [DCd[i] for i in range(DCd.shape[0])]
+        _, _, U = self.biLSTM(hx, cx, DCd)
+        U = F.stack(U, axis=0)
+
 
         #TODO: remove sentinel vect - before or after calc U?
         return U

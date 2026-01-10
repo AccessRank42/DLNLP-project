@@ -1,8 +1,8 @@
 # model.py
 
-import io
+# import io
 
-from nltk.translate import bleu_score
+# from nltk.translate import bleu_score
 import numpy as np
 
 
@@ -38,7 +38,7 @@ class DocAndQuesEncoder(ch.Chain):
         D = F.stack(D, axis=0)
         # print(D.shape)
 
-        #TODO: append sentinel D
+        #TODO: append sentinel vector to D
 
         x_Q_emb = F.dropout(self.emb(x_Q), self.dropout)
 
@@ -48,7 +48,7 @@ class DocAndQuesEncoder(ch.Chain):
 
         Q = F.tanh(self.projectionLayer(Q_, n_batch_axes=2))
 
-        #TODO: append sentinel Q
+        #TODO: append sentinel vector to Q
 
         return (D, Q)
 
@@ -56,7 +56,6 @@ class CoattentionEncoder(ch.Chain):
     def __init__(self, dropout, hid_size):
         super(CoattentionEncoder, self).__init__()
         with self.init_scope():
-            # self.biLSTM = L.NStepBiLSTM(1, 3*hid_size, 2*hid_size, dropout)
             self.biLSTM = L.NStepBiLSTM(1, 3*hid_size, hid_size, dropout)
 
         self.dropout = dropout
@@ -98,8 +97,9 @@ class HighwayMaxout(ch.Chain):
         super(HighwayMaxout, self).__init__()
         with self.init_scope():
             # self.projectionLayer = ch.Sequential(L.Linear(5*hid_size, hid_size, nobias=True), F.tanh)
-            self.projectionLayer = L.Linear(hid_size)
-            # self.max1 = L.Maxout((3*hid_size)**2, hid_size, maxout_pool_size)
+            self.projectionLayer = ch.Sequential(L.Linear(hid_size, nobias=True), F.tanh)
+            # self.projectionLayer = L.Linear(hid_size, nobias=True)
+            
             self.max1 = L.Maxout(3*hid_size, hid_size, maxout_pool_size)
             self.max2 = L.Maxout(hid_size, hid_size, maxout_pool_size)
             self.max3 = L.Maxout(2*hid_size, 1, maxout_pool_size)
@@ -108,13 +108,11 @@ class HighwayMaxout(ch.Chain):
 
     def forward(self, U, h_i, u_s_i, u_e_i):
         r_in = F.concat([h_i, u_s_i, u_e_i], axis=1)
-        # print('r_in')
-        # print(r_in.shape)
-        r = F.tanh(self.projectionLayer(r_in))
+        
+        # r = F.tanh(self.projectionLayer(r_in))
+        r = self.projectionLayer(r_in)
         r = F.swapaxes(F.tile(r, (U.shape[1],1,1)), 0, 1)
-        # print("r, U")
-        # print(r.shape)
-        # print(U.shape)
+        
         Ur = F.concat([U, r], axis=2)
         Ur_ = [Ur[i] for i in range(Ur.shape[0])]
         # _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb_)
@@ -132,7 +130,7 @@ class DynamicPointingDecoder(ch.Chain):
     def __init__(self, dropout, hid_size, maxout_pool_size, dyn_dec_max_it):
         super(DynamicPointingDecoder, self).__init__()
         with self.init_scope():
-            # self.decLSTM = L.NStepLSTM(1, hid_size, hid_size, dropout)
+            # self.decLSTM = L.NStepLSTM(1, hid_size, hid_size, dropout) #--> stacked seems to not be a good fit here
             self.decLSTM = L.LSTM(None, hid_size)
 
             self.hmn_start = HighwayMaxout(dropout, hid_size, maxout_pool_size)
@@ -151,6 +149,7 @@ class DynamicPointingDecoder(ch.Chain):
         u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
         
         for _ in range(self.dyn_dec_max_it):
+            # --> stacked seems to not be a good fit here
             # hx, cx, h_i = self.decLSTM(hx, cx, h_i) #TODO: reuse hx, cx?
             # h_i = F.stack(h_i, axis=0)
 
@@ -177,7 +176,6 @@ class DynamicCoattentionNW(ch.Chain):
     def __init__(self, max_seq_length, hid_state_size, dyn_dec_max_it, maxout_pool_size, dropout, emb_mat):
         super(DynamicCoattentionNW, self).__init__()
         with self.init_scope():
-            # self.embed_D = None
             self.docQuesEncoder = DocAndQuesEncoder(emb_mat, dropout, hid_state_size)
             self.coAttEncoder = CoattentionEncoder(dropout, hid_state_size)
             self.decoder = DynamicPointingDecoder(dropout, hid_state_size, maxout_pool_size, dyn_dec_max_it)
@@ -189,7 +187,6 @@ class DynamicCoattentionNW(ch.Chain):
         self.dropout = dropout
 
     def forward(self, d, q):
-        # TODO: pad d, q to max seq?
 
         D, Q = self.docQuesEncoder(d, q)
 
@@ -198,78 +195,4 @@ class DynamicCoattentionNW(ch.Chain):
         s, e = self.decoder(U)
 
         return s, e
-
-
-
-# class Seq2seq(ch.Chain):
-
-#     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units):
-#         super(Seq2seq, self).__init__()
-#         with self.init_scope():
-#             self.embed_x = L.EmbedID(n_source_vocab, n_units)
-#             self.embed_y = L.EmbedID(n_target_vocab, n_units)
-#             self.encoder = L.NStepLSTM(n_layers, n_units, n_units, 0.1)
-#             self.decoder = L.NStepLSTM(n_layers, n_units, n_units, 0.1)
-#             self.W = L.Linear(n_units, n_target_vocab)
-
-#         self.n_layers = n_layers
-#         self.n_units = n_units
-
-#     def forward(self, xs, ys):
-#         xs = [x[::-1] for x in xs]
-
-#         eos = self.xp.array([EOS], np.int32)
-#         ys_in = [F.concat([eos, y], axis=0) for y in ys]
-#         ys_out = [F.concat([y, eos], axis=0) for y in ys]
-
-#         # Both xs and ys_in are lists of arrays.
-#         exs = sequence_embed(self.embed_x, xs)
-#         eys = sequence_embed(self.embed_y, ys_in)
-
-#         batch = len(xs)
-#         # None represents a zero vector in an encoder.
-#         hx, cx, _ = self.encoder(None, None, exs)
-#         _, _, os = self.decoder(hx, cx, eys)
-
-#         # It is faster to concatenate data before calculating loss
-#         # because only one matrix multiplication is called.
-#         concat_os = F.concat(os, axis=0)
-#         concat_ys_out = F.concat(ys_out, axis=0)
-#         loss = F.sum(F.softmax_cross_entropy(
-#             self.W(concat_os), concat_ys_out, reduce='no')) / batch
-
-#         ch.report({'loss': loss}, self)
-#         n_words = concat_ys_out.shape[0]
-#         perp = self.xp.exp(loss.array * batch / n_words)
-#         ch.report({'perp': perp}, self)
-#         return loss
-
-#     def translate(self, xs, max_length=100):
-#         batch = len(xs)
-#         with ch.no_backprop_mode(), ch.using_config('train', False):
-#             xs = [x[::-1] for x in xs]
-#             exs = sequence_embed(self.embed_x, xs)
-#             h, c, _ = self.encoder(None, None, exs)
-#             ys = self.xp.full(batch, EOS, np.int32)
-#             result = []
-#             for i in range(max_length):
-#                 eys = self.embed_y(ys)
-#                 eys = F.split_axis(eys, batch, 0)
-#                 h, c, ys = self.decoder(h, c, eys)
-#                 cys = F.concat(ys, axis=0)
-#                 wy = self.W(cys)
-#                 ys = self.xp.argmax(wy.array, axis=1).astype(np.int32)
-#                 result.append(ys)
-
-#         # Using `xp.concatenate(...)` instead of `xp.stack(result)` here to
-#         # support NumPy 1.9.
-#         result = ch.get_device('@numpy').send(
-#             self.xp.concatenate([x[None, :] for x in result]).T)
-
-#         # Remove EOS taggs
-#         outs = []
-#         for y in result:
-#             inds = np.argwhere(y == EOS)
-#             if len(inds) > 0:
-#                 y = y[:inds[0, 0]]
-#             outs.append(y)
+    

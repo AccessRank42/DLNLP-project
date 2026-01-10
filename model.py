@@ -72,7 +72,6 @@ class CoattentionEncoder(ch.Chain):
 
         # A^Q = softmax(L) \in \R^{(m + 1) x (n + 1)}
         Aq = F.softmax(L, axis=2)
-        # print(Aq.shape)
         # A^Q = softmax(L^T) \in \R^{(n + 1) x (m + 1)}
         Ad = F.softmax(F.transpose(L, axes=(0,2,1)))
 
@@ -86,11 +85,9 @@ class CoattentionEncoder(ch.Chain):
 
         # U = [u_1, ..., u_m] for u_t = bi-directional LSTM(u_{t-1}, u_{t+1}, [d_t, c^D_t]) \in \R^{2l} 
         DCd = F.concat([D, Cd], axis=2)
-        # print(DCd.shape)
         DCd = [DCd[i] for i in range(DCd.shape[0])]
         _, _, U = self.biLSTM(hx, cx, DCd)
         U = F.stack(U, axis=0)
-        # print(U.shape)
 
 
         #TODO: remove sentinel vect - before or after calc U?
@@ -103,27 +100,31 @@ class HighwayMaxout(ch.Chain):
             # self.projectionLayer = ch.Sequential(L.Linear(5*hid_size, hid_size, nobias=True), F.tanh)
             self.projectionLayer = L.Linear(hid_size)
             # self.max1 = L.Maxout((3*hid_size)**2, hid_size, maxout_pool_size)
-            self.max1 = L.Maxout((3*hid_size)**2, hid_size, maxout_pool_size)
+            self.max1 = L.Maxout(3*hid_size, hid_size, maxout_pool_size)
             self.max2 = L.Maxout(hid_size, hid_size, maxout_pool_size)
             self.max3 = L.Maxout(2*hid_size, 1, maxout_pool_size)
 
         self.dropout = dropout
 
     def forward(self, U, h_i, u_s_i, u_e_i):
-        # print(h_i.shape)
-        # print(u_s_i.shape)
-        # print(u_e_i.shape)
-        # r_in = F.concat([h_i, u_s_i, u_e_i], axis=2)
         r_in = F.concat([h_i, u_s_i, u_e_i], axis=1)
-        print(r_in.shape)
+        # print('r_in')
+        # print(r_in.shape)
         r = F.tanh(self.projectionLayer(r_in))
         r = F.swapaxes(F.tile(r, (U.shape[1],1,1)), 0, 1)
-        print(r.shape)
-        print(U.shape)
+        # print("r, U")
+        # print(r.shape)
+        # print(U.shape)
         Ur = F.concat([U, r], axis=2)
-        m_t_1 = self.max1(Ur)
-        m_t_2 = self.max2(m_t_1)
-        hmn = self.max3(F.concat([m_t_1, m_t_2], axis=1))
+        Ur_ = [Ur[i] for i in range(Ur.shape[0])]
+        # _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb_)
+        # D = F.stack(D, axis=0)
+        hmn = []
+        for Ur in Ur_:
+            m_t_1 = self.max1(Ur)
+            m_t_2 = self.max2(m_t_1)
+            hmn.append(self.max3(F.concat([m_t_1, m_t_2], axis=1)))
+        hmn = F.stack(hmn, axis=0)
         return hmn
 
 
@@ -132,7 +133,6 @@ class DynamicPointingDecoder(ch.Chain):
         super(DynamicPointingDecoder, self).__init__()
         with self.init_scope():
             # self.decLSTM = L.NStepLSTM(1, hid_size, hid_size, dropout)
-            # self.decLSTM = L.LSTM(hid_size, hid_size)
             self.decLSTM = L.LSTM(None, hid_size)
 
             self.hmn_start = HighwayMaxout(dropout, hid_size, maxout_pool_size)
@@ -142,48 +142,45 @@ class DynamicPointingDecoder(ch.Chain):
         self.dyn_dec_max_it = dyn_dec_max_it
 
     def forward(self, U, hx=None, cx=None):
-        # h_i = U
-        s_i = 0
-        e_i = U.shape[1]-1
+        batch_sz = U.shape[0]
+        s_i = np.zeros(batch_sz, dtype=int) # vector of batch size for start positions
+        e_i = np.array([U.shape[1]-1 for i in range(batch_sz)]) # vector of batch size for end positions
 
-        # u_s_i = U[:,s_i:s_i+1,:]
-        u_s_i = U[:,s_i,:]
-        # u_e_i = U[:,e_i:e_i+1,:]
-        u_e_i = U[:,e_i,:]
+        # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
+        u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
+        u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
         
-        #TODO
-        for i in range(self.dyn_dec_max_it):
-            
-            # h_i = [U[i] for i in range(h_i.shape[0])]
-            
+        for _ in range(self.dyn_dec_max_it):
             # hx, cx, h_i = self.decLSTM(hx, cx, h_i) #TODO: reuse hx, cx?
             # h_i = F.stack(h_i, axis=0)
-            # u_se_i = F.concat([u_s_i, u_e_i], axis=2) #TODO: should axis=1 instead?
-            u_se_i = F.concat([u_s_i, u_e_i], axis=1) #TODO: should axis=1 instead?
+
+            u_se_i = F.concat([u_s_i, u_e_i], axis=1) # intermediate step combining u_
             h_i = self.decLSTM(u_se_i) #TODO: unsure if and how h_i should also be fed in
 
-            alpha = self.hmn_start(U, h_i, u_s_i, u_e_i)
-            # s = F.max(alpha)
-            beta = self.hmn_end(U, h_i, u_s_i, u_e_i)
-            # e = F.max(beta)
+            # calculate alpha for selecting the new start pos
+            alpha = self.hmn_start(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
+            s_i = F.flatten(F.argmax(alpha, axis=1)).array # (batch_sz, )
 
-            u_s_i = U[:,s_i:s_i+1,:]
-            u_e_i = U[:,e_i:e_i+1,:]
+            # calculate alpha for selecting the new end pos
+            beta = self.hmn_end(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
+            e_i = F.flatten(F.argmax(beta,axis=1)).array # (batch_sz, )
+
+            # select new u_s_i, u_e_i as at the start (s_i)
+            u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0)
+            u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0)
         
-
-        # return s[-1], e[-1]
+        return s_i, e_i
         
 
 
 class DynamicCoattentionNW(ch.Chain):
-    # def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units):
     def __init__(self, max_seq_length, hid_state_size, dyn_dec_max_it, maxout_pool_size, dropout, emb_mat):
         super(DynamicCoattentionNW, self).__init__()
         with self.init_scope():
             # self.embed_D = None
             self.docQuesEncoder = DocAndQuesEncoder(emb_mat, dropout, hid_state_size)
             self.coAttEncoder = CoattentionEncoder(dropout, hid_state_size)
-            self.decoder = DynamicPointingDecoder(dropout, hid_state_size, maxout_pool_size)
+            self.decoder = DynamicPointingDecoder(dropout, hid_state_size, maxout_pool_size, dyn_dec_max_it)
 
         self.max_seq_length = max_seq_length
         self.hid_state_size = hid_state_size
@@ -199,6 +196,8 @@ class DynamicCoattentionNW(ch.Chain):
         U = self.coAttEncoder(D, Q)
 
         s, e = self.decoder(U)
+
+        return s, e
 
 
 

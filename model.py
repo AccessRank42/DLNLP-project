@@ -23,8 +23,8 @@ class DocAndQuesEncoder(ch.Chain):
             self.projectionLayer = L.Linear(hid_size, hid_size)
 
             # Sentinel vectors for D, Q
-            self.sentielD = ch.Parameter(np.random.randn(emb_mat.shape[1], 1)) #TODO: shape?
-            self.sentielQ = ch.Parameter(np.random.randn(emb_mat.shape[1], 1)) #TODO: shape?
+            self.sentielD = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) #TODO: shape?
+            self.sentielQ = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) #TODO: shape?
 
         self.dropout = dropout
 
@@ -36,9 +36,12 @@ class DocAndQuesEncoder(ch.Chain):
         x_D_emb_ = [x_D_emb[i] for i in range(x_D_emb.shape[0])]
         _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb_)
         D = F.stack(D, axis=0)
-        # print(D.shape)
 
-        #TODO: append sentinel vector to D
+        # append sentinel vector to D
+        sentinelD = F.repeat(self.sentielD, D.shape[0], axis=0)
+        D = F.concat([D, sentinelD], axis=1)
+
+
 
         x_Q_emb = F.dropout(self.emb(x_Q), self.dropout)
 
@@ -48,7 +51,10 @@ class DocAndQuesEncoder(ch.Chain):
 
         Q = F.tanh(self.projectionLayer(Q_, n_batch_axes=2))
 
-        #TODO: append sentinel vector to Q
+        # append sentinel vector to Q
+        sentinelQ = F.repeat(self.sentielQ, Q.shape[0], axis=0)
+        Q = F.concat([Q, sentinelQ], axis=1)
+
 
         return (D, Q)
 
@@ -84,12 +90,13 @@ class CoattentionEncoder(ch.Chain):
 
         # U = [u_1, ..., u_m] for u_t = bi-directional LSTM(u_{t-1}, u_{t+1}, [d_t, c^D_t]) \in \R^{2l} 
         DCd = F.concat([D, Cd], axis=2)
+        # we remove the sentinel vector here
+        DCd = DCd[:,:DCd.shape[1]-1,:]
         DCd = [DCd[i] for i in range(DCd.shape[0])]
         _, _, U = self.biLSTM(hx, cx, DCd)
         U = F.stack(U, axis=0)
-
-
-        #TODO: remove sentinel vect - before or after calc U?
+        
+        #TODO: should the sentinel vector get removed here insted?
         return U
 
 class HighwayMaxout(ch.Chain):

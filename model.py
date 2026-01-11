@@ -162,19 +162,32 @@ class DynamicPointingDecoder(ch.Chain):
 
             u_se_i = F.concat([u_s_i, u_e_i], axis=1) # intermediate step combining u_
             h_i = self.decLSTM(u_se_i) #TODO: unsure if and how h_i should also be fed in
+            # h_i = np.zeros(,dtype=int)
+            # print(h_i.shape)
 
             # calculate alpha for selecting the new start pos
             alpha = self.hmn_start(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
             s_i = F.flatten(F.argmax(alpha, axis=1)).array # (batch_sz, )
 
-            # calculate alpha for selecting the new end pos
+            # # calculate alpha for selecting the new end pos
             beta = self.hmn_end(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
             e_i = F.flatten(F.argmax(beta,axis=1)).array # (batch_sz, )
 
-            # select new u_s_i, u_e_i as at the start (s_i)
+            # # select new u_s_i, u_e_i as at the start (s_i)
             u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0)
             u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0)
         
+        # c = self.decLSTM.c
+        # print(c.debug_print())
+        # print(self.decLSTM.c.creator)
+        # print(self.decLSTM.c.creator_node)
+        # h = self.decLSTM.h
+        self.decLSTM.reset_state()
+        # self.decLSTM.c = c
+        # self.decLSTM.h = h
+        # self.decLSTM.set_state(self.decLSTM.c, None)
+        
+
         return s_i, e_i
         
 

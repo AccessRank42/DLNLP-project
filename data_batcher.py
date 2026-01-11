@@ -191,7 +191,7 @@ def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, co
       discard_long: If True, discard any examples that are longer than context_len or question_len.
         If False, truncate those exmaples instead.
     """
-    context_file, qn_file, ans_file = open(context_path), open(qn_path), open(ans_path)
+    context_file, qn_file, ans_file = open(context_path, encoding="utf-8"), open(qn_path, encoding="utf-8"), open(ans_path, encoding="utf-8")
     batches = []
 
     while True:

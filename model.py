@@ -161,9 +161,8 @@ class DynamicPointingDecoder(ch.Chain):
             # h_i = F.stack(h_i, axis=0)
 
             u_se_i = F.concat([u_s_i, u_e_i], axis=1) # intermediate step combining u_
-            h_i = self.decLSTM(u_se_i) #TODO: unsure if and how h_i should also be fed in
-            # h_i = np.zeros(,dtype=int)
-            # print(h_i.shape)
+            h_i = self.decLSTM(u_se_i) #TODO: unsure if and how h_i should also be fed in 
+            
 
             # calculate alpha for selecting the new start pos
             alpha = self.hmn_start(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
@@ -182,6 +181,7 @@ class DynamicPointingDecoder(ch.Chain):
         # print(self.decLSTM.c.creator)
         # print(self.decLSTM.c.creator_node)
         # h = self.decLSTM.h
+        # TODO: necessary for training to run, but probably influences results in a way we don't want (slower/no convergence?)
         self.decLSTM.reset_state()
         # self.decLSTM.c = c
         # self.decLSTM.h = h

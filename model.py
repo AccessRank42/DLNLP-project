@@ -146,22 +146,26 @@ class DynamicPointingDecoder(ch.Chain):
         self.dropout = dropout
         self.dyn_dec_max_it = dyn_dec_max_it
 
-    def forward(self, U, hx=None, cx=None):
+    def reset_state(self):
+        self.decLSTM.reset_state()
+
+    def forward(self, U, t):
+
         batch_sz = U.shape[0]
         s_i = np.zeros(batch_sz, dtype=int) # vector of batch size for start positions
         e_i = np.array([U.shape[1]-1 for i in range(batch_sz)]) # vector of batch size for end positions
 
-        # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
-        u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
-        u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
+        # # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
+        # u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
+        # u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
         
         for _ in range(self.dyn_dec_max_it):
-            # --> stacked seems to not be a good fit here
-            # hx, cx, h_i = self.decLSTM(hx, cx, h_i) #TODO: reuse hx, cx?
-            # h_i = F.stack(h_i, axis=0)
+            # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
+            u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
+            u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
 
             u_se_i = F.concat([u_s_i, u_e_i], axis=1) # intermediate step combining u_
-            h_i = self.decLSTM(u_se_i) #TODO: unsure if and how h_i should also be fed in 
+            h_i = self.decLSTM(u_se_i)
             
 
             # calculate alpha for selecting the new start pos
@@ -172,23 +176,22 @@ class DynamicPointingDecoder(ch.Chain):
             beta = self.hmn_end(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
             e_i = F.flatten(F.argmax(beta,axis=1)).array # (batch_sz, )
 
-            # # select new u_s_i, u_e_i as at the start (s_i)
-            u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0)
-            u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0)
-        
-        # c = self.decLSTM.c
-        # print(c.debug_print())
-        # print(self.decLSTM.c.creator)
-        # print(self.decLSTM.c.creator_node)
-        # h = self.decLSTM.h
-        # TODO: necessary for training to run, but probably influences results in a way we don't want (slower/no convergence?)
-        self.decLSTM.reset_state()
-        # self.decLSTM.c = c
-        # self.decLSTM.h = h
-        # self.decLSTM.set_state(self.decLSTM.c, None)
-        
+            # # # select new u_s_i, u_e_i as at the start (s_i)
+            # u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0)
+            # u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0)
 
-        return s_i, e_i
+        
+        s_t = t[:,0]
+        e_t = t[:,1]
+        alpha = alpha[:,:,0]
+        beta = beta[:,:,0]
+        # print(alpha.shape)
+        # print(s_t.shape)
+        loss1 = F.softmax_cross_entropy(alpha, s_t)
+        loss2 = F.softmax_cross_entropy(beta, e_t)
+        calc_loss = loss1 + loss2
+
+        return s_i, e_i, calc_loss
         
 
 
@@ -206,13 +209,16 @@ class DynamicCoattentionNW(ch.Chain):
         self.maxout_pool_size = maxout_pool_size
         self.dropout = dropout
 
-    def forward(self, d, q):
+    def reset_state(self):
+        self.decoder.reset_state()
+
+    def forward(self, d, q, t):
 
         D, Q = self.docQuesEncoder(d, q)
 
         U = self.coAttEncoder(D, Q)
 
-        s, e = self.decoder(U)
+        s, e, loss = self.decoder(U, t)
 
-        return s, e
+        return s, e, loss
     

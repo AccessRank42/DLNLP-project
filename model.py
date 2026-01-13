@@ -67,7 +67,7 @@ class CoattentionEncoder(ch.Chain):
         self.dropout = dropout
 
     def forward(self, D, Q, hx=None, cx=None):
-        # TODO Note: in our case m = n = max_seq_length due to padding 
+        # Note: in our case m = n = max_seq_length due to padding 
         # l is our hid_size
         # also, matmuls & dims are reversed
 
@@ -105,7 +105,6 @@ class HighwayMaxout(ch.Chain):
         with self.init_scope():
             # self.projectionLayer = ch.Sequential(L.Linear(5*hid_size, hid_size, nobias=True), F.tanh)
             self.projectionLayer = ch.Sequential(L.Linear(hid_size, nobias=True), F.tanh)
-            # self.projectionLayer = L.Linear(hid_size, nobias=True)
             
             self.max1 = L.Maxout(3*hid_size, hid_size, maxout_pool_size)
             self.max2 = L.Maxout(hid_size, hid_size, maxout_pool_size)
@@ -116,14 +115,11 @@ class HighwayMaxout(ch.Chain):
     def forward(self, U, h_i, u_s_i, u_e_i):
         r_in = F.concat([h_i, u_s_i, u_e_i], axis=1)
         
-        # r = F.tanh(self.projectionLayer(r_in))
         r = self.projectionLayer(r_in)
         r = F.swapaxes(F.tile(r, (U.shape[1],1,1)), 0, 1)
         
         Ur = F.concat([U, r], axis=2)
         Ur_ = [Ur[i] for i in range(Ur.shape[0])]
-        # _, _, D = self.encLSTM(hx_D, cx_D, x_D_emb_)
-        # D = F.stack(D, axis=0)
         hmn = []
         for Ur in Ur_:
             m_t_1 = self.max1(Ur)
@@ -155,9 +151,6 @@ class DynamicPointingDecoder(ch.Chain):
         s_i = np.zeros(batch_sz, dtype=int) # vector of batch size for start positions
         e_i = np.array([U.shape[1]-1 for i in range(batch_sz)]) # vector of batch size for end positions
 
-        # # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
-        # u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
-        # u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0) # batch_sz x 2*hid_sz
         
         for _ in range(self.dyn_dec_max_it):
             # select parts of U to be used for calculating new s_i, e_i based on old s_i, e_i
@@ -176,17 +169,12 @@ class DynamicPointingDecoder(ch.Chain):
             beta = self.hmn_end(U, h_i, u_s_i, u_e_i) # batch_sz x seq_len x 1
             e_i = F.flatten(F.argmax(beta,axis=1)).array # (batch_sz, )
 
-            # # # select new u_s_i, u_e_i as at the start (s_i)
-            # u_s_i = F.stack([U[i,s_i[i],:] for i in range(batch_sz)], axis=0)
-            # u_e_i = F.stack([U[i,e_i[i],:] for i in range(batch_sz)], axis=0)
 
         
         s_t = t[:,0]
         e_t = t[:,1]
         alpha = alpha[:,:,0]
         beta = beta[:,:,0]
-        # print(alpha.shape)
-        # print(s_t.shape)
         loss1 = F.softmax_cross_entropy(alpha, s_t)
         loss2 = F.softmax_cross_entropy(beta, e_t)
         calc_loss = loss1 + loss2

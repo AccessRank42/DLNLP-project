@@ -1,5 +1,13 @@
-__pycache__/
-train.*
-dev.*
-glove.*
-test*
+# caches
+artifacts_torch/
+artifacts_deberta/
+artifacts_distilbert/
+
+# datasets
+*.arrow
+*.json
+
+# large predictions
+raw_predictions.json
+features/
+dev_dataset/

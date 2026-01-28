@@ -27,7 +27,7 @@ We evaluated four systems:
 
 | Model       | EM   | F1   |
 |--------------|------|------|
-| DCN          | 1.4  | 7.7  |
+| DCN          | 48.23| 61.45|
 | BERT         | 64.4 | 79.1 |
 | DistilBERT   | 66.9 | 76.8 |
 | DeBERTa      | 83.5 | 89.6 |

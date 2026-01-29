@@ -338,10 +338,10 @@ def iter_eval_batches(paths: dict, word2id: dict, batch_size: int, max_seq: int)
 # --------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--checkpoint", default="CKPT_200.model")
+    ap.add_argument("--checkpoint", default="DCANW_E10.model")
     ap.add_argument("--dev_json", default="data/dev-v1.1.json")
-    ap.add_argument("--glove_path", default="data/glove.6B.300d.txt")
-    ap.add_argument("--max_seq", type=int, default=200)
+    ap.add_argument("--glove_path", default="data/glove.840B.300d.txt")
+    ap.add_argument("--max_seq", type=int, default=600)
     ap.add_argument("--hid", type=int, default=200)
     ap.add_argument("--maxout", type=int, default=16)
     ap.add_argument("--dropout", type=float, default=0.1)

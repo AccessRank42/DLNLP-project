@@ -1,0 +1,80 @@
+QID: 56be4db0acb8001400a502ec
+PRED: nfl
+GOLD: denver broncos
+------------------------------------------------------------
+QID: 56be4db0acb8001400a502ed
+PRED: nfl
+GOLD: carolina panthers
+------------------------------------------------------------
+QID: 56be4db0acb8001400a502ee
+PRED: san francisco bay area at santa clara
+GOLD: santa clara , california
+------------------------------------------------------------
+QID: 56be4db0acb8001400a502ef
+PRED: nfl
+GOLD: denver broncos
+------------------------------------------------------------
+QID: 56be8e613aeaaa14008c90d1
+PRED: arabic numerals
+GOLD: " golden anniversary "
+------------------------------------------------------------
+QID: 56be8e613aeaaa14008c90d2
+PRED: february 7 , 2016
+GOLD: february 7 , 2016
+------------------------------------------------------------
+QID: 56be8e613aeaaa14008c90d3
+PRED: super bowl 50 was an american football game to determine the champion of the national football league ( nfl ) for the 2015 season . the american football conference
+GOLD: american football conference
+------------------------------------------------------------
+QID: 56bea9923aeaaa14008c91b9
+PRED: arabic numerals
+GOLD: " golden anniversary "
+------------------------------------------------------------
+QID: 56bea9923aeaaa14008c91ba
+PRED: the american football conference
+GOLD: american football conference
+------------------------------------------------------------
+QID: 56bea9923aeaaa14008c91bb
+PRED: february 7 , 2016
+GOLD: february 7 , 2016
+------------------------------------------------------------
+QID: 56beace93aeaaa14008c91df
+PRED: national football league ( nfl ) for the 2015 season . the american football conference ( afc ) champion denver broncos defeated the national football conference ( nfc ) champion carolina panthers
+GOLD: denver broncos
+------------------------------------------------------------
+QID: 56beace93aeaaa14008c91e0
+PRED: the american football conference
+GOLD: levi 's stadium
+------------------------------------------------------------
+QID: 56beace93aeaaa14008c91e1
+PRED: santa
+GOLD: santa clara
+------------------------------------------------------------
+QID: 56beace93aeaaa14008c91e2
+PRED: super bowl l
+GOLD: super bowl l
+------------------------------------------------------------
+QID: 56beace93aeaaa14008c91e3
+PRED: 2015
+GOLD: 2015
+------------------------------------------------------------
+QID: 56bf10f43aeaaa14008c94fd
+PRED: 2015
+GOLD: 2015
+------------------------------------------------------------
+QID: 56bf10f43aeaaa14008c94fe
+PRED: santa
+GOLD: santa clara
+------------------------------------------------------------
+QID: 56bf10f43aeaaa14008c94ff
+PRED: national football league ( nfl ) for the 2015 season . the american football conference ( afc ) champion denver broncos defeated the national football conference ( nfc ) champion carolina panthers 24–10 to earn their third super bowl title . the game was played on february 7 , 2016 , at levi 's stadium
+GOLD: levi 's stadium
+------------------------------------------------------------
+QID: 56bf10f43aeaaa14008c9500
+PRED: super bowl 50 was an american football game to determine the champion of the national football league ( nfl ) for the 2015 season . the american football conference ( afc ) champion denver broncos defeated the national football conference ( nfc ) champion carolina panthers 24–10 to earn their third super bowl title . the game was played on february 7 , 2016 , at levi 's stadium in the san francisco bay area at santa clara , california . as this was the 50th super bowl
+GOLD: 24–10
+------------------------------------------------------------
+QID: 56bf10f43aeaaa14008c9501
+PRED: february 7 , 2016
+GOLD: february 7 , 2016
+------------------------------------------------------------

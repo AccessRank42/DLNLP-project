@@ -1,8 +1,5 @@
 # model.py
 
-# import io
-
-# from nltk.translate import bleu_score
 import numpy as np
 
 
@@ -19,17 +16,30 @@ class DocAndQuesEncoder(ch.Chain):
             self.emb = L.EmbedID(emb_mat.shape[0], emb_mat.shape[1], initialW=emb_mat)
             self.emb.disable_update()
             self.encLSTM = L.NStepLSTM(1, emb_mat.shape[1], hid_size, dropout)
-            # self.projectionLayer = ch.Sequential(L.Linear(hid_size, hid_size), F.tanh)
             self.projectionLayer = L.Linear(hid_size, hid_size)
 
             # Sentinel vectors for D, Q
-            self.sentielD = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) #TODO: shape?
-            self.sentielQ = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) #TODO: shape?
+            self.sentielD = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) 
+            self.sentielQ = ch.Parameter(np.random.randn(1, 1, hid_size).astype('f')) 
 
         self.dropout = dropout
 
     def forward(self, x_D, x_Q, hx_D=None, cx_D=None, hx_Q=None, cx_Q=None):
-
+        """
+        Inputs:
+          x_D: chainer.Variable.
+            The context/document tokens.
+          x_Q: chainer.Variable.
+            The question tokens.
+          hx_D: chainer.Variable or None.
+            Initial hidden states of LSTM. Should remain None for initilization to zero. 
+          cx_D: chainer.Variable or None.
+            Initial hidden states of LSTM. Should remain None for initilization to zero.
+          hx_Q: chainer.Variable or None.
+            Initial hidden states of LSTM. Should remain None for initilization to zero. 
+          cx_Q: chainer.Variable or None.
+            Initial hidden states of LSTM. Should remain None for initilization to zero.
+        """
         x_D_emb = F.dropout(self.emb(x_D), self.dropout)
 
         # nstep LSTM needs it split into a list
@@ -67,6 +77,17 @@ class CoattentionEncoder(ch.Chain):
         self.dropout = dropout
 
     def forward(self, D, Q, hx=None, cx=None):
+        """
+        Inputs:
+          D: chainer.Variable.
+            The encoded context/document.
+          Q: chainer.Variable.
+            The encoded question.
+          hx: chainer.Variable or None.
+            Initial hidden states of biLSTM. Should remain None for initilization to zero. 
+          cx: chainer.Variable or None.
+            Initial hidden states of biLSTM. Should remain None for initilization to zero.
+        """
         # Note: in our case m = n = max_seq_length due to padding 
         # l is our hid_size
         # also, matmuls & dims are reversed
@@ -103,7 +124,6 @@ class HighwayMaxout(ch.Chain):
     def __init__(self, dropout, hid_size, maxout_pool_size):
         super(HighwayMaxout, self).__init__()
         with self.init_scope():
-            # self.projectionLayer = ch.Sequential(L.Linear(5*hid_size, hid_size, nobias=True), F.tanh)
             self.projectionLayer = ch.Sequential(L.Linear(hid_size, nobias=True), F.tanh)
             
             self.max1 = L.Maxout(3*hid_size, hid_size, maxout_pool_size)
@@ -113,6 +133,17 @@ class HighwayMaxout(ch.Chain):
         self.dropout = dropout
 
     def forward(self, U, h_i, u_s_i, u_e_i):
+        """
+        Inputs:
+          U: chainer.Variable.
+            The encoded context and question.
+          h_i: chainer.Variable.
+            LSTM hidden state.
+          u_s_i: chainer.Variable.
+            Part of U poinnted at by current start index. 
+          u_e_i: chainer.Variable.
+            Part of U poinnted at by current end index. 
+        """
         r_in = F.concat([h_i, u_s_i, u_e_i], axis=1)
         
         r = self.projectionLayer(r_in)
@@ -146,6 +177,13 @@ class DynamicPointingDecoder(ch.Chain):
         self.decLSTM.reset_state()
 
     def forward(self, U, t):
+        """
+        Inputs:
+          U: chainer.Variable.
+            The encoded context and question.
+          t: numpy/cupy array.
+            The ground truth. Only used in training mode for calculating loss. 
+        """
 
         batch_sz = U.shape[0]
         s_i = np.zeros(batch_sz, dtype=int) # vector of batch size for start positions
@@ -170,14 +208,16 @@ class DynamicPointingDecoder(ch.Chain):
             e_i = F.flatten(F.argmax(beta,axis=1)).array # (batch_sz, )
 
 
-        
-        s_t = t[:,0]
-        e_t = t[:,1]
-        alpha = alpha[:,:,0]
-        beta = beta[:,:,0]
-        loss1 = F.softmax_cross_entropy(alpha, s_t)
-        loss2 = F.softmax_cross_entropy(beta, e_t)
-        calc_loss = loss1 + loss2
+        if ch.config.train:
+            s_t = t[:,0]
+            e_t = t[:,1]
+            alpha = alpha[:,:,0]
+            beta = beta[:,:,0]
+            loss1 = F.softmax_cross_entropy(alpha, s_t)
+            loss2 = F.softmax_cross_entropy(beta, e_t)
+            calc_loss = loss1 + loss2
+        else:
+            calc_loss = 0
 
         return s_i, e_i, calc_loss
         
@@ -201,7 +241,15 @@ class DynamicCoattentionNW(ch.Chain):
         self.decoder.reset_state()
 
     def forward(self, d, q, t):
-
+        """
+        Inputs:
+          d: chainer.Variable.
+            The document/context.
+          q: chainer.Variable.
+            The question.
+          t: numpy/cupy array.
+            The ground truth. Only important in training mode. 
+        """
         D, Q = self.docQuesEncoder(d, q)
 
         U = self.coAttEncoder(D, Q)

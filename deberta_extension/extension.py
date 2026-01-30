@@ -16,6 +16,6 @@ class DeBERTaExtension:
             "question-answering", 
             model=model_id, 
             tokenizer=self.tokenizer, 
-            device=0,          #use cuda device
+            device=-1,          #use cuda device
             batch_size=batch_size # we enable batch processing
         )
